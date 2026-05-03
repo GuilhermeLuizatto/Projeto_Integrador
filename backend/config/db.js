@@ -119,8 +119,8 @@ async function initDB() {
   await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS reward_id INTEGER")
   await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS user_id INTEGER")
   await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS points_spent INTEGER")
-  await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS cost INTEGER NOT NULL")
-  await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS voucher_code VARCHAR(100) NOT NULL")
+  await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS cost INTEGER NOT NULL DEFAULT 0")
+  await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS voucher_code VARCHAR(100) NOT NULL DEFAULT ''")
   await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'")
   await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS redeemed_at TIMESTAMP DEFAULT NOW()")
   await pool.query("ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
@@ -138,7 +138,7 @@ async function initDB() {
   // Executar migrations SQL para triggers e sincronizações
   // =============================================================================
   try {
-    const migrationPath = path.join(__dirname, '..', 'migrations', '004_add_sync_user_points_trigger.sql')
+    const migrationPath = path.join(__dirname, '..', 'src', 'migrations', '004_add_sync_user_points_trigger.sql')
     if (fs.existsSync(migrationPath)) {
       const migrationSql = fs.readFileSync(migrationPath, 'utf8')
       await pool.query(migrationSql)
