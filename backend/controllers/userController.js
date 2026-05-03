@@ -6,11 +6,36 @@ const { sanitizeUsers } = require('../utils/sanitizer')
 async function getCurrentUser(req, res) {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.nivel, u.position, u.points, u.gestor_id AS "gestorId",
-              COALESCE(up.total_points, 0) AS total_points
-       FROM users u
-       LEFT JOIN user_points up ON u.id = up.user_id
-       WHERE u.id = $1`,
+      `SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.role,
+        u.nivel,
+        u.position,
+        u.gestor_id AS "gestorId",
+        COALESCE(up.total_points, 0) AS points,
+        (
+          SELECT COUNT(*)::int
+          FROM user_badges ub
+          WHERE ub.user_id = u.id
+        ) AS badges_count,
+        (
+          SELECT COUNT(*)::int
+          FROM tasks t
+          WHERE t.assignee_id = u.id AND t.status IN ('approved', 'done')
+        ) AS tasks_count,
+        (
+          SELECT ranking
+          FROM (
+            SELECT user_id, RANK() OVER (ORDER BY total_points DESC)::int AS ranking
+            FROM user_points
+          ) r
+          WHERE r.user_id = u.id
+        ) AS ranking_position
+      FROM users u
+      LEFT JOIN user_points up ON u.id = up.user_id
+      WHERE u.id = $1`,
       [req.user.id]
     )
 
@@ -20,9 +45,6 @@ async function getCurrentUser(req, res) {
 
     const user = result.rows[0]
     user.role = normalizeRole(user.role)
-    // Usar total_points como points para consistência
-    user.points = user.total_points
-    delete user.total_points
 
     return res.status(200).json(user)
   } catch (error) {
@@ -352,69 +374,49 @@ async function getMyProfile(req, res) {
 
 async function updateMyProfile(req, res) {
   try {
+    const { name, email, position } = req.body
     const userId = req.user.id
-    const { name, email, cargo } = req.body
 
-    // Validar que pelo menos um campo está sendo atualizado
-    if (!name && !email && !cargo) {
-      return res.status(400).json({ error: 'Pelo menos um campo deve ser fornecido para atualização' })
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Nome e email são obrigatórios' })
     }
 
-    // Verificar se email já existe (se está sendo atualizado)
-    if (email) {
-      const existingEmail = await pool.query(
-        'SELECT id FROM users WHERE email = $1 AND id != $2',
-        [email, userId]
-      )
-      if (existingEmail.rows.length > 0) {
-        return res.status(409).json({ error: 'Email já está em uso' })
-      }
+    const emailCheck = await pool.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2',
+      [email, userId]
+    )
+    if (emailCheck.rows.length > 0) {
+      return res.status(409).json({ error: 'Email já está em uso por outro usuário' })
     }
 
-    // Preparar valores para update
-    const updateFields = []
-    const updateValues = []
-    let paramCount = 1
+    const result = await pool.query(
+      `UPDATE users
+       SET name = $1, email = $2, position = $3
+       WHERE id = $4
+       RETURNING id, name, email, role, nivel, position, gestor_id AS "gestorId"`,
+      [name.trim(), email.trim().toLowerCase(), position || null, userId]
+    )
 
-    if (name) {
-      updateFields.push(`name = $${paramCount}`)
-      updateValues.push(name)
-      paramCount++
-    }
-    if (email) {
-      updateFields.push(`email = $${paramCount}`)
-      updateValues.push(email)
-      paramCount++
-    }
-    if (cargo) {
-      updateFields.push(`position = $${paramCount}`)
-      updateValues.push(cargo)
-      paramCount++
-    }
-
-    updateValues.push(userId)
-
-    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING id, name, email, role, nivel, position, equipe, COALESCE((SELECT total_points FROM user_points WHERE user_id = id), 0) as total_points`
-
-    const result = await pool.query(query, updateValues)
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' })
-    }
-
-    const user = result.rows[0]
-    return res.status(200).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: normalizeRole(user.role),
-      nivel: user.nivel,
-      cargo: user.position,
-      equipe: user.equipe,
-      total_points: user.total_points
-    })
+    return res.status(200).json(result.rows[0])
   } catch (error) {
     console.error('updateMyProfile error:', error)
+    return res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+}
+
+async function getMyPointsHistory(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT t.id, t.title, t.points, COALESCE(t.reviewed_at, t.updated_at) AS completed_at
+       FROM tasks t
+       WHERE t.assignee_id = $1 AND t.status IN ('approved', 'concluida')
+       ORDER BY COALESCE(t.reviewed_at, t.updated_at) DESC
+       LIMIT 10`,
+      [req.user.id]
+    )
+    return res.status(200).json(result.rows)
+  } catch (error) {
+    console.error('getMyPointsHistory error:', error)
     return res.status(500).json({ error: 'Erro interno do servidor' })
   }
 }
@@ -500,6 +502,7 @@ module.exports = {
   clearOrganization,
   getMyProfile,
   updateMyProfile,
+  getMyPointsHistory,
   getPointsHistory,
   updateVisibility,
 }

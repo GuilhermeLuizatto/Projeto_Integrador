@@ -96,6 +96,7 @@ export default function Dashboard() {
   const chartCanvas = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<Chart | null>(null);
 
+  const [userPoints, setUserPoints] = useState<number>(Number(currentUser.points ?? 0));
   const [badges, setBadges] = useState<BadgeItem[]>(BADGE_FALLBACK);
   const [monthly, setMonthly] = useState<MonthlyStat[]>(MONTHLY_FALLBACK);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(LEADERBOARD_FALLBACK);
@@ -110,7 +111,6 @@ export default function Dashboard() {
   }, [badges, pendingBadge]);
 
   const userName = currentUser.name?.split(" ")[0] ?? "Usuário";
-  const userPoints = Number(currentUser.points ?? 0);
 
   const handleClaimBadge = async (badgeId: string) => {
     try {
@@ -151,13 +151,46 @@ export default function Dashboard() {
   const distanceToTop = Math.max(0, topScore - currentPoints);
   const progressToTop = topScore > 0 ? Math.min(1, currentPoints / topScore) : 0;
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function refreshUserPoints() {
+      try {
+        const response = await fetch(getApiUrl("/api/users/me"), {
+          headers: getAuthHeaders(),
+          credentials: 'include',
+        });
+
+        if (!response.ok || !isMounted) return;
+
+        const userData = await response.json();
+        const points = Number(userData.points ?? userPoints);
+        setUserPoints(points);
+
+        const stored = localStorage.getItem("azis_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          localStorage.setItem("azis_user", JSON.stringify({ ...parsed, ...userData }));
+        }
+      } catch (error) {
+        console.error("Error fetching current user:", error);
+      }
+    }
+
+    refreshUserPoints();
+
+    return () => {
+      isMounted = false;
+    }
+  }, []);
+
   const loadDashboardData = async () => {
     try {
-      const [badgesResponse, statsResponse, leaderboardResponse, tasksResponse] = await Promise.all([
+      const [badgesResponse, statsResponse, leaderboardResponse, profileResponse] = await Promise.all([
         fetch(getApiUrl("/api/badges"), { headers: getAuthHeaders(), credentials: 'include' }),
         fetch(getApiUrl("/api/stats/monthly"), { headers: getAuthHeaders(), credentials: 'include' }),
         fetch(getApiUrl("/api/leaderboard"), { headers: getAuthHeaders(), credentials: 'include' }),
-        fetch(getApiUrl("/api/tasks"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/users/me"), { headers: getAuthHeaders(), credentials: 'include' }),
       ]);
 
       if (badgesResponse.ok) {
@@ -205,17 +238,12 @@ export default function Dashboard() {
         }
       }
 
-      if (tasksResponse.ok) {
-        const payload = await tasksResponse.json();
-        const rawTasks = payload?.tasks ?? payload;
-        if (Array.isArray(rawTasks)) {
-          setCompletedTasks(
-            rawTasks.filter((task: any) => task.status === "approved" || task.status === "done").length,
-          );
-        }
+      if (profileResponse.ok) {
+        const payload = await profileResponse.json();
+        setCompletedTasks(Number(payload.tasks_count ?? 0));
       }
     } catch (error) {
-      console.error("Dashboard load error:", error);
+      console.error("Error loading dashboard data:", error);
     }
   };
 

@@ -57,7 +57,7 @@ async function getTasks(req, res) {
          u.role  AS assignee_role
        FROM tasks t
        LEFT JOIN users u ON t.assignee_id = u.id
-       WHERE ${whereClause}
+       WHERE ${whereClause} AND t.deleted = FALSE
        ORDER BY t.created_at DESC`
 
     const params = isAdmin ? [] : [userId]
@@ -289,7 +289,7 @@ async function deleteTask(req, res) {
       return res.status(403).json({ error: 'Você não tem permissão para excluir esta tarefa' })
     }
 
-    await pool.query('DELETE FROM tasks WHERE id = $1', [id])
+    await pool.query('UPDATE tasks SET deleted = TRUE, deleted_at = NOW() WHERE id = $1', [id])
     return res.status(200).json({ message: 'Tarefa excluída com sucesso' })
   } catch (error) {
     console.error('deleteTask error:', error)

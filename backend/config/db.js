@@ -47,6 +47,8 @@ async function initDB() {
       reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       reviewed_at TIMESTAMP,
       credited BOOLEAN NOT NULL DEFAULT FALSE,
+      deleted BOOLEAN NOT NULL DEFAULT FALSE,
+      deleted_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
@@ -59,6 +61,8 @@ async function initDB() {
   await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reviewed_by INTEGER")
   await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP")
   await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS credited BOOLEAN NOT NULL DEFAULT FALSE")
+  await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE")
+  await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP")
 
   // Recompensas, resgates e pontos de usuário (conforme contexto solicitado)
   await pool.query(`
@@ -202,11 +206,11 @@ async function initDB() {
       }
     }
 
-    // Inicializar user_points com 0
+    // Inicializar user_points com 0 somente para usuários que ainda não têm registro
     await pool.query(
-      `INSERT INTO user_points (user_id, total_points, updated_at) 
-       VALUES ($1, 0, NOW()) 
-       ON CONFLICT (user_id) DO UPDATE SET total_points = 0, updated_at = NOW()`,
+      `INSERT INTO user_points (user_id, total_points, updated_at)
+       VALUES ($1, 0, NOW())
+       ON CONFLICT (user_id) DO NOTHING`,
       [userId]
     )
   }

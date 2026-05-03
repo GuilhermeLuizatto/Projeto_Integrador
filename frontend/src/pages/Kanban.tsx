@@ -31,6 +31,38 @@ const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: "rejected", title: "Reprovado", color: "bg-destructive" },
 ];
 
+function parseLocalDate(deadline: string | Date) {
+  if (deadline instanceof Date) {
+    return deadline;
+  }
+
+  const normalized = deadline.trim();
+
+  // ISO date only: YYYY-MM-DD
+  const simpleDateMatch = normalized.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/);
+  if (simpleDateMatch) {
+    const [, year, month, day] = simpleDateMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  // ISO datetime: YYYY-MM-DDTHH:mm:ssZ or with timezone offset
+  const isoDatetimeMatch = normalized.match(/^([0-9]{4}-[0-9]{2}-[0-9]{2})T.*$/);
+  if (isoDatetimeMatch) {
+    return new Date(normalized);
+  }
+
+  // Fallback to browser parser for any other string format
+  const fallback = new Date(normalized);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function formatKanbanDeadline(deadline?: string | null) {
+  if (!deadline) return "Sem data";
+  const date = parseLocalDate(deadline);
+  if (!date) return "Sem data";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
 function TaskCard({ task, isDragging, onReviewClick, onDelete }: { task: Task; isDragging?: boolean; onReviewClick?: (task: Task) => void; onDelete?: (task: Task) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
 
@@ -101,7 +133,7 @@ function TaskCard({ task, isDragging, onReviewClick, onDelete }: { task: Task; i
             <div className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">
-                {new Date(task.deadline).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                {formatKanbanDeadline(task.deadline)}
               </span>
             </div>
           </div>
@@ -165,27 +197,40 @@ export default function Kanban() {
     ? tasks.filter(task => task.assignee.id === currentUser.id)
     : tasks;
 
-  const mapApiTaskToTask = (task: any): Task => ({
-    id: task.id?.toString() ?? "",
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    points: task.points,
-    deadline: task.deadline,
-    created_at: task.created_at,
-    assignee: {
-      id: task.assignee_id?.toString() ?? "",
-      name: task.assignee_name ?? "",
-      email: task.assignee_email ?? "",
-      role: task.assignee_role ?? "funcionario",
-      nivel: currentUser?.nivel ?? 1,
-      points: 0,
-      institution_id: "",
-      position: "",
-      gestorId: null,
-      avatar: ""
-    },
-  });
+  const mapApiTaskToTask = (task: any): Task => {
+    let deadlineValue: string = "";
+
+    if (task.deadline instanceof Date) {
+      deadlineValue = task.deadline.toISOString().split("T")[0];
+    } else if (typeof task.deadline === "string") {
+      const normalized = task.deadline.trim();
+      if (normalized.length > 0) {
+        deadlineValue = normalized.split("T")[0];
+      }
+    }
+
+    return {
+      id: task.id?.toString() ?? "",
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      points: task.points,
+      deadline: deadlineValue,
+      created_at: task.created_at,
+      assignee: {
+        id: task.assignee_id?.toString() ?? "",
+        name: task.assignee_name ?? "",
+        email: task.assignee_email ?? "",
+        role: task.assignee_role ?? "funcionario",
+        nivel: currentUser?.nivel ?? 1,
+        points: 0,
+        institution_id: "",
+        position: "",
+        gestorId: null,
+        avatar: "",
+      },
+    };
+  };
 
   const loadTasks = async () => {
     setLoading(true);
@@ -215,7 +260,7 @@ export default function Kanban() {
     }
   };
 
-  const handleCreateTask = async (data: { title: string; description: string; assignedTo: string; points: number }) => {
+  const handleCreateTask = async (data: { title: string; description: string; assignedTo: string; points: number; deadline?: string }) => {
     if (data.points < 1 || data.points > 1000) {
       toast({ title: "Erro", description: "Os pontos devem estar entre 1 e 1000." });
       return;
@@ -232,6 +277,7 @@ export default function Kanban() {
           title: data.title,
           description: data.description,
           points: data.points,
+          deadline: data.deadline || null,
           assignee_id: Number(data.assignedTo),
         }),
         credentials: 'include',

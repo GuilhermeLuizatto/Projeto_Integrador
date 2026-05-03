@@ -52,12 +52,37 @@ function getInitials(name: string) {
 export function AppSidebar() {
   const location = useLocation();
   const [feedBadgeCount, setFeedBadgeCount] = useState(0);
+  const [currentUser, setCurrentUser] = useState(getCurrentUser());
   const isDark = useTheme();
-  const currentUser = getCurrentUser();
   const navItems = getNavItemsByRole(currentUser?.role ?? "funcionario");
 
   useEffect(() => {
     let isMounted = true;
+
+    async function refreshCurrentUser() {
+      try {
+        const response = await fetch(getApiUrl("/api/users/me"), {
+          headers: getAuthHeaders(),
+          credentials: 'include',
+        });
+
+        if (!response.ok || !isMounted) return;
+
+        const userData = await response.json();
+        const updatedUser = { ...getCurrentUser(), ...userData };
+        setCurrentUser(updatedUser);
+
+        const stored = localStorage.getItem("azis_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          localStorage.setItem("azis_user", JSON.stringify({ ...parsed, ...userData }));
+        }
+      } catch (error) {
+        console.error("Error refreshing current user:", error);
+      }
+    }
+
+    refreshCurrentUser();
 
     async function fetchFeedNotifications() {
       try {
