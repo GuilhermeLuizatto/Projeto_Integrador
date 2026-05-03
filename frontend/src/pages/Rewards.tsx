@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { getCurrentUser } from "@/data/mock";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { getApiUrl, getAuthHeaders } from "@/lib/api";
+import { getApiUrl, getAuthHeaders, fetchApi } from "@/lib/api";
 import chestVideo from "@/assets/treasure-chest.mp4";
 
 const AVAILABLE_EMOJIS = [
@@ -90,9 +90,7 @@ export default function Rewards() {
 
   const loadUserPoints = async () => {
     try {
-      const response = await fetch(getApiUrl("/api/users/me"), {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetchApi("/api/users/me");
       if (response.ok) {
         const userData = await response.json();
         if (userData.points != null) {
@@ -111,9 +109,7 @@ export default function Rewards() {
 
   const loadRewards = async () => {
     try {
-      const response = await fetch(getApiUrl("/api/rewards"), {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetchApi("/api/rewards");
       if (response.ok) {
         const data = await response.json();
         const rawRewards = data.data || data.rewards || [];
@@ -127,17 +123,13 @@ export default function Rewards() {
 
   const loadRedemptions = async () => {
     try {
-      const response = await fetch(getApiUrl("/api/rewards/my-redemptions"), {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetchApi("/api/rewards/my-redemptions");
       if (response.ok) {
         const data = await response.json();
         setRedemptions(data.data || data.redemptions || []);
       } else if (response.status === 404) {
         try {
-          const fallback = await fetch(getApiUrl("/api/rewards/history"), {
-            headers: getAuthHeaders(),
-          });
+          const fallback = await fetchApi("/api/rewards/history");
           if (fallback.ok) {
             const data = await fallback.json();
             setRedemptions(data.data || data.redemptions || []);
@@ -168,7 +160,7 @@ export default function Rewards() {
 
     setRedeeming(reward.id);
     try {
-      const response = await fetch(getApiUrl(`/api/rewards/${reward.id}/redeem`), {
+      const response = await fetchApi(`/api/rewards/${reward.id}/redeem`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -214,7 +206,7 @@ export default function Rewards() {
 
     setCreating(true);
     try {
-      const response = await fetch(getApiUrl("/api/rewards"), {
+      const response = await fetchApi("/api/rewards", {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -281,7 +273,7 @@ export default function Rewards() {
 
     setEditing(true);
     try {
-      const response = await fetch(getApiUrl(`/api/rewards/${editingReward.id}`), {
+      const response = await fetchApi(`/api/rewards/${editingReward.id}`, {
         method: "PUT",
         headers: {
           ...getAuthHeaders(),
@@ -328,7 +320,7 @@ export default function Rewards() {
   const handleDeleteReward = async (rewardId: string | number) => {
     if (!window.confirm("Tem certeza que deseja excluir esta recompensa?")) return;
     try {
-      const response = await fetch(getApiUrl(`/api/rewards/${rewardId}`), {
+      const response = await fetchApi(`/api/rewards/${rewardId}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });

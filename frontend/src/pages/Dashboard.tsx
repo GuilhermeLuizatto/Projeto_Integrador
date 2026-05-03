@@ -117,6 +117,7 @@ export default function Dashboard() {
       const response = await fetch(getApiUrl(`/api/badges/${badgeId}/claim`), {
         method: "POST",
         headers: getAuthHeaders(),
+        credentials: 'include',
       });
       if (response.ok) {
         setBadges(prev => prev.map(b => b.id === badgeId ? { ...b, claimed: true } : b));
@@ -153,10 +154,10 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       const [badgesResponse, statsResponse, leaderboardResponse, tasksResponse] = await Promise.all([
-        fetch(getApiUrl("/api/badges"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/stats/monthly"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/leaderboard"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/tasks"), { headers: getAuthHeaders() }),
+        fetch(getApiUrl("/api/badges"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/stats/monthly"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/leaderboard"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/tasks"), { headers: getAuthHeaders(), credentials: 'include' }),
       ]);
 
       if (badgesResponse.ok) {

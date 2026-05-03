@@ -188,12 +188,12 @@ export default function Feed() {
   const fetchFeedData = async (pageToLoad = 1) => {
     try {
       const [feedResponse, leaderboardResponse, badgesResponse, missionsResponse, onlineResponse, onlineCountResponse] = await Promise.allSettled([
-        fetch(getApiUrl(`/api/feed?limit=10&page=${pageToLoad}`), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/leaderboard"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/badges/me"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/missions/active"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/users/online"), { headers: getAuthHeaders() }),
-        fetch(getApiUrl("/api/users/online-count"), { headers: getAuthHeaders() }),
+        fetch(getApiUrl(`/api/feed?limit=10&page=${pageToLoad}`), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/leaderboard"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/badges/me"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/missions/active"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/users/online"), { headers: getAuthHeaders(), credentials: 'include' }),
+        fetch(getApiUrl("/api/users/online-count"), { headers: getAuthHeaders(), credentials: 'include' }),
       ]);
 
       if (feedResponse.status === "fulfilled" && feedResponse.value.ok) {
@@ -312,7 +312,7 @@ export default function Feed() {
     fetchFeedData(1);
     const interval = window.setInterval(async () => {
       try {
-        const response = await fetch(getApiUrl("/api/feed?limit=1"), { headers: getAuthHeaders() });
+        const response = await fetch(getApiUrl("/api/feed?limit=1"), { headers: getAuthHeaders(), credentials: 'include' });
         if (!response.ok) return;
         const payload = await response.json();
         const raw = payload?.feed ?? payload;

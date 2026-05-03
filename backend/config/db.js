@@ -152,6 +152,8 @@ async function initDB() {
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 0")
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(255)")
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS gestor_id INTEGER")
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS equipe VARCHAR(255)")
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS visibility_settings JSONB DEFAULT '{"show_in_ranking": true, "public_points": true, "feed_achievements": true}'`)
 
   // Linha removida: não existe coluna manager_id na tabela users
 
@@ -208,6 +210,21 @@ async function initDB() {
       [userId]
     )
   }
+
+  // =============================================================================
+  // TABELA DE HISTÓRICO DE PONTOS
+  // =============================================================================
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS points_history (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL,
+      task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+      task_title VARCHAR(255),
+      description TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `)
 
   // =============================================================================
   // TABELAS DE SELOS (BADGES)

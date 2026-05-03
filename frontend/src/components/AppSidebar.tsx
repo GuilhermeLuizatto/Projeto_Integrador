@@ -61,7 +61,7 @@ export function AppSidebar() {
 
     async function fetchFeedNotifications() {
       try {
-        const response = await fetch(getApiUrl("/api/feed?limit=50"), { headers: getAuthHeaders() });
+        const response = await fetch(getApiUrl("/api/feed?limit=50"), { headers: getAuthHeaders(), credentials: 'include' });
         if (!response.ok || !isMounted) return;
         const payload = await response.json();
         const raw = payload?.feed ?? payload;

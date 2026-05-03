@@ -197,6 +197,7 @@ export default function Kanban() {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
+        credentials: 'include',
       });
 
       const data = await response.json();
@@ -233,6 +234,7 @@ export default function Kanban() {
           points: data.points,
           assignee_id: Number(data.assignedTo),
         }),
+        credentials: 'include',
       });
 
       const responseData = await response.json();
@@ -259,6 +261,7 @@ export default function Kanban() {
           ...getAuthHeaders(),
         },
         body: JSON.stringify(body),
+        credentials: 'include',
       });
 
       const responseData = await response.json();
@@ -326,6 +329,7 @@ export default function Kanban() {
           ...getAuthHeaders(),
         },
         body: JSON.stringify({ action, feedback }),
+        credentials: 'include',
       });
 
       const responseData = await response.json();

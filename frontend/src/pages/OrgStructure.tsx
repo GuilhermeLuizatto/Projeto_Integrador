@@ -87,7 +87,7 @@ export default function OrgStructure() {
   useEffect(() => {
     const apiUrl = getApiUrl("/api/users");
 
-    fetch(apiUrl, { headers: getAuthHeaders() })
+    fetch(apiUrl, { headers: getAuthHeaders(), credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -142,6 +142,7 @@ export default function OrgStructure() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ gestorId: newGestorId || null }),
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -185,6 +186,7 @@ export default function OrgStructure() {
     const response = await fetch(getApiUrl(`/api/users/${selectedUser.id}`), {
       method: "DELETE",
       headers: getAuthHeaders(),
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -198,7 +200,7 @@ export default function OrgStructure() {
     }
 
     // Refresh from backend to ensure IDs and list are consistent
-    const refreshed = await fetch(getApiUrl("/api/users"), { headers: getAuthHeaders() })
+    const refreshed = await fetch(getApiUrl("/api/users"), { headers: getAuthHeaders(), credentials: 'include' })
       .then((r) => r.json())
       .catch(() => users);
     const nextUsers = Array.isArray(refreshed) ? refreshed : users;

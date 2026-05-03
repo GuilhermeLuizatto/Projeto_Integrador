@@ -1,11 +1,12 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trophy, Star, Award, Zap, Edit2 } from "lucide-react";
-import { getCurrentUser } from "@/data/mock";
+import { Trophy, Star, Zap, Edit2 } from "lucide-react";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/useProfile";
+import type { UpdateProfileData, UpdateVisibilityData } from "@/types/profile";
 
 const AVAILABLE_EMOJIS = [
   "👩", "👩‍🦰", "👩‍🦱", "👩‍🦲", "👩‍🦳", "👨", "👨‍🦰", "👨‍🦱", "👨‍🦲", "👨‍🦳",
@@ -13,26 +14,41 @@ const AVAILABLE_EMOJIS = [
   "👨‍💻", "👩‍💻", "👨‍🎓", "👩‍🎓", "👨‍🎨", "👩‍🎨", "🧑‍🚀", "🧑‍🎬", "🧑‍🎤", "😊"
 ];
 
-const pointsHistory = [
-  { date: "06/03/2026", desc: "Setup CI/CD pipeline", points: 60, icon: "📊" },
-  { date: "04/03/2026", desc: "Code review módulo auth", points: 25, icon: "🔍" },
-  { date: "05/03/2026", desc: "Otimizar queries do banco", points: 45, icon: "⚙️" },
-  { date: "03/03/2026", desc: "Documentação da API", points: 30, icon: "📚" },
-  { date: "02/03/2026", desc: "Desbloqueou selo 'Velocidade'", points: 100, icon: "🏅" },
-  { date: "01/03/2026", desc: "Primeira tarefa concluída", points: 15, icon: "✅" },
-];
+const LoadingSkeleton = () => (
+  <div className="p-6 lg:p-8 min-h-screen bg-[color:var(--background)] flex flex-col gap-6 animate-pulse">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="h-96 bg-[color:var(--surface2)] rounded-lg" />
+      <div className="lg:col-span-2 space-y-6">
+        <div className="h-48 bg-[color:var(--surface2)] rounded-lg" />
+        <div className="h-48 bg-[color:var(--surface2)] rounded-lg" />
+      </div>
+    </div>
+    <div className="h-64 bg-[color:var(--surface2)] rounded-lg" />
+  </div>
+);
 
 export default function Profile() {
-  const currentUser = getCurrentUser();
+  const { profile, pointsHistory, loading, error, handleSaveProfile, handleToggleVisibility } = useProfile();
   const [selectedEmoji, setSelectedEmoji] = useState("👩‍💼");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [formData, setFormData] = useState({
-    name: currentUser.name,
-    email: currentUser.email,
-    cargo: "CEO",
-    equipe: "Azis",
+  const [formData, setFormData] = useState<UpdateProfileData>({
+    name: "",
+    email: "",
+    cargo: "",
   });
+  const [isSaving, setIsSaving] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Atualizar formData quando o perfil carregar
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        name: profile.name,
+        email: profile.email,
+        cargo: profile.cargo || "",
+      });
+    }
+  }, [profile]);
 
   const handleEmojiSelect = (emoji: string) => {
     setSelectedEmoji(emoji);
@@ -40,17 +56,95 @@ export default function Profile() {
     toast.success("Avatar atualizado com sucesso!");
   };
 
-  const handleSave = () => {
-    toast.success("✓ Salvo");
-    setTimeout(() => {}, 2000);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      await handleSaveProfile(formData);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const stats = [
-    { label: "Pontos", value: (currentUser.points ?? 0).toLocaleString(), icon: "⭐", color: "text-yellow-400" },
-    { label: "Ranking", value: "#1", icon: "🏆", color: "text-purple-400" },
-    { label: "Selos", value: "12", icon: "🎖️", color: "text-green-400" },
-    { label: "Tarefas", value: "62", icon: "⚡", color: "text-blue-400" },
-  ];
+  const handleToggle = async (key: keyof UpdateVisibilityData) => {
+    if (!profile) return;
+    const newValue = !(profile.visibility_settings[key] ?? true);
+    await handleToggleVisibility(key, newValue);
+  };
+
+  const stats = useMemo(() => {
+    if (!profile) return [];
+    return [
+      { 
+        label: "Pontos", 
+        value: profile.total_points.toLocaleString("pt-BR"), 
+        icon: "⭐", 
+        color: "text-yellow-400" 
+      },
+      { 
+        label: "Ranking", 
+        value: `#${profile.ranking_position}`, 
+        icon: "🏆", 
+        color: "text-purple-400" 
+      },
+      { 
+        label: "Selos", 
+        value: profile.badges_count.toString(), 
+        icon: "🎖️", 
+        color: "text-green-400" 
+      },
+      { 
+        label: "Tarefas", 
+        value: profile.tasks_count.toString(), 
+        icon: "⚡", 
+        color: "text-blue-400" 
+      },
+    ];
+  }, [profile]);
+
+  const visibilityItems = useMemo(() => {
+    if (!profile) return [];
+    return [
+      { 
+        key: "show_in_ranking" as const,
+        icon: Trophy, 
+        label: "Aparecer no ranking", 
+        desc: "Outros podem ver sua posição no ranking geral",
+        isActive: profile.visibility_settings.show_in_ranking 
+      },
+      { 
+        key: "public_points" as const,
+        icon: Star, 
+        label: "Pontuação pública", 
+        desc: "Mostrar seus pontos no perfil público",
+        isActive: profile.visibility_settings.public_points 
+      },
+      { 
+        key: "feed_achievements" as const,
+        icon: Zap, 
+        label: "Feed de conquistas", 
+        desc: "Compartilhar suas conquistas no feed de equipe",
+        isActive: profile.visibility_settings.feed_achievements 
+      },
+    ];
+  }, [profile]);
+
+  if (loading) {
+    return <LoadingSkeleton />;
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="p-6 lg:p-8 min-h-screen bg-[color:var(--background)] flex items-center justify-center">
+        <Card className="border-red-500/50 bg-red-500/10 max-w-md w-full">
+          <CardContent className="pt-6">
+            <p className="text-red-400 text-center font-semibold">
+              {error || "Erro ao carregar perfil"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 min-h-screen bg-[color:var(--background)] flex flex-col">
@@ -98,20 +192,22 @@ export default function Profile() {
               )}
 
               {/* Badge de Nível */}
-              <div className="absolute -top-3 -right-3 bg-purple-500 px-3 py-1 rounded-full text-xs font-bold text-white hidden">
-                Nível 5 — Especialista
-              </div>
+              {profile.nivel && (
+                <div className="absolute -top-3 -right-3 bg-purple-500 px-3 py-1 rounded-full text-xs font-bold text-white">
+                  Nível {profile.nivel}
+                </div>
+              )}
             </div>
 
             {/* Nome */}
             <h2 className="text-2xl font-heading font-bold text-foreground text-center mb-2">
-              {currentUser.name}
+              {profile.name}
             </h2>
 
             {/* Cargo como Pill */}
             <div className="flex justify-center mb-6">
               <span className="inline-flex items-center rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-400 border border-blue-500/30">
-                Gestor
+                {profile.cargo || "Sem cargo"}
               </span>
             </div>
 
@@ -125,20 +221,6 @@ export default function Profile() {
                   <div className="text-xs text-[color:var(--muted)] font-semibold">{stat.label}</div>
                 </div>
               ))}
-            </div>
-
-            {/* Level Progress Bar */}
-            <div className="space-y-2 mt-auto hidden">
-              <div className="flex items-center justify-between text-xs text-[color:var(--muted)]">
-                <span className="font-bold">Nível 5</span>
-                <span className="font-bold">250 / 500 pts</span>
-              </div>
-              <div className="h-2 bg-[color:var(--surface2)] rounded-full overflow-hidden border border-[color:var(--border)]">
-                <div className="h-full bg-gradient-primary w-1/2" />
-              </div>
-              <p className="text-xs text-[color:var(--muted)] text-center mt-2">
-                Faltam 250 pontos para alcançar Nível 6
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -155,7 +237,7 @@ export default function Profile() {
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-[color:var(--muted)] uppercase">Nome</Label>
                   <Input
-                    value={formData.name}
+                    value={formData.name || ""}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="rounded-lg bg-[color:var(--surface2)] border-[color:var(--border)]"
                   />
@@ -163,7 +245,8 @@ export default function Profile() {
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-[color:var(--muted)] uppercase">Email</Label>
                   <Input
-                    value={formData.email}
+                    value={formData.email || ""}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     type="email"
                     className="rounded-lg bg-[color:var(--surface2)] border-[color:var(--border)]"
                   />
@@ -173,23 +256,26 @@ export default function Profile() {
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-[color:var(--muted)] uppercase">Cargo</Label>
                   <Input
-                    value={formData.cargo}
+                    value={formData.cargo || ""}
+                    onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
                     className="rounded-lg bg-[color:var(--surface2)] border-[color:var(--border)]"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-[color:var(--muted)] uppercase">Equipe</Label>
                   <Input
-                    value={formData.equipe}
-                    className="rounded-lg bg-[color:var(--surface2)] border-[color:var(--border)]"
+                    value={profile.equipe}
+                    readOnly
+                    className="rounded-lg bg-[color:var(--surface2)] border-[color:var(--border)] opacity-60 cursor-not-allowed"
                   />
                 </div>
               </div>
               <Button
                 onClick={handleSave}
-                className="w-full bg-gradient-primary text-white rounded-lg font-bold"
+                disabled={isSaving}
+                className="w-full bg-gradient-primary text-white rounded-lg font-bold disabled:opacity-50"
               >
-                Salvar alterações
+                {isSaving ? "Salvando..." : "Salvar alterações"}
               </Button>
             </CardContent>
           </Card>
@@ -201,23 +287,31 @@ export default function Profile() {
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { icon: Trophy, label: "Aparecer no ranking", desc: "Outros podem ver sua posição no ranking geral" },
-                  { icon: Star, label: "Pontuação pública", desc: "Mostrar seus pontos no perfil público" },
-                  { icon: Zap, label: "Feed de conquistas", desc: "Compartilhar suas conquistas no feed de equipe" },
-                ].map((item, i) => {
+                {visibilityItems.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={i} className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-4">
+                    <button
+                      key={item.key}
+                      onClick={() => handleToggle(item.key)}
+                      className={`rounded-lg border p-4 transition-all ${
+                        item.isActive
+                          ? "border-purple-500/50 bg-purple-500/10"
+                          : "border-[color:var(--border)] bg-[color:var(--surface2)]"
+                      }`}
+                    >
                       <div className="flex items-start justify-between mb-2">
-                        <Icon className="w-5 h-5 text-purple-400" />
-                        <span className="inline-flex items-center rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-bold text-green-400">
-                          Ativo
+                        <Icon className={`w-5 h-5 ${item.isActive ? "text-purple-400" : "text-[color:var(--muted)]"}`} />
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                          item.isActive
+                            ? "bg-green-500/20 text-green-400"
+                            : "bg-gray-500/20 text-gray-400"
+                        }`}>
+                          {item.isActive ? "Ativo" : "Inativo"}
                         </span>
                       </div>
-                      <h4 className="text-sm font-bold text-foreground mb-1">{item.label}</h4>
-                      <p className="text-xs text-[color:var(--muted)]">{item.desc}</p>
-                    </div>
+                      <h4 className="text-sm font-bold text-foreground mb-1 text-left">{item.label}</h4>
+                      <p className="text-xs text-[color:var(--muted)] text-left">{item.desc}</p>
+                    </button>
                   );
                 })}
               </div>
@@ -232,24 +326,33 @@ export default function Profile() {
           <CardTitle className="font-heading">📋 Histórico de Pontos</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {pointsHistory.map((entry, i) => (
-              <div key={i} className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-lg flex-shrink-0">
-                    {entry.icon}
+          {pointsHistory.length === 0 ? (
+            <p className="text-center text-[color:var(--muted)] py-8">Nenhum histórico de pontos disponível</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {pointsHistory.map((entry) => {
+                const date = new Date(entry.created_at);
+                const formattedDate = date.toLocaleDateString("pt-BR");
+                
+                return (
+                  <div key={entry.id} className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                        ⭐
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-foreground">{entry.task_title}</p>
+                        <p className="text-xs text-[color:var(--muted)]">{formattedDate}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-heading font-bold text-purple-400">+{entry.points} ⭐</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-foreground">{entry.desc}</p>
-                    <p className="text-xs text-[color:var(--muted)]">{entry.date}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-heading font-bold text-purple-400">+{entry.points} ⭐</p>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

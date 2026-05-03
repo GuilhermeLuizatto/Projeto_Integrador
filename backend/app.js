@@ -9,7 +9,14 @@ const badgeRoutes = require('./routes/badgeRoutes')
 
 const app = express()
 
-app.use(cors())
+// Configurar CORS para aceitar credenciais
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}))
+
 app.use(express.json())
 
 app.use('/api/auth', authRoutes)
